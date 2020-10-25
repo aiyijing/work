@@ -1,0 +1,147 @@
+
+### 创建job的yaml文件计算圆周率后2000位 
+cat << EOF > job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi
+spec:
+  template:
+    metadata:
+      name: pi
+    spec:
+      containers:
+      - name: pi
+        image: perl
+        imagePullPolicy: IfNotPresent
+        command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+      restartPolicy: Never
+EOF
+
+[root@master01 ~]# kubectl apply -f job.yaml
+
+[root@master01 ~]# kubectl get job
+NAME   COMPLETIONS   DURATION   AGE
+pi     1/1           7s         66s
+
+[root@master01 ~]# kubectl logs pi-6wz8h 
+3.1415926535897932384626433832795028841971693993751058209749445923078164
+062862089986280348253421170679821480865132823066470938446095505822317253
+594081284811174502841027019385211055596446229489549303819644288109756659
+334461284756482337867831652712019091456485669234603486104543266482133936
+072602491412737245870066063155881748815209209628292540917153643678925903
+600113305305488204665213841469519415116094330572703657595919530921861173
+819326117931051185480744623799627495673518857527248912279381830119491298
+336733624406566430860213949463952247371907021798609437027705392171762931
+767523846748184676694051320005681271452635608277857713427577896091736371
+787214684409012249534301465495853710507922796892589235420199561121290219
+608640344181598136297747713099605187072113499999983729780499510597317328
+160963185950244594553469083026425223082533446850352619311881710100031378
+387528865875332083814206171776691473035982534904287554687311595628638823
+537875937519577818577805321712268066130019278766111959092164201989380952
+572010654858632788659361533818279682303019520353018529689957736225994138
+912497217752834791315155748572424541506959508295331168617278558890750983
+817546374649393192550604009277016711390098488240128583616035637076601047
+101819429555961989467678374494482553797747268471040475346462080466842590
+694912933136770289891521047521620569660240580381501935112533824300355876
+402474964732639141992726042699227967823547816360093417216412199245863150
+302861829745557067498385054945885869269956909272107975093029553211653449
+872027559602364806654991198818347977535663698074265425278625518184175746
+728909777727938000816470600161452491921732172147723501414419735685481613
+611573525521334757418494684385233239073941433345477624168625189835694855
+620992192221842725502542568876717904946016534668049886272327917860857843
+838279679766814541009538837863609506800642251252051173929848960841284886
+269456042419652850222106611863067442786220391949450471237137869609563643
+719172874677646575739624138908658326459958133904780275898
+
+
+
+### 固定结束次数的Job
+cat << EOF > completions-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: busyboxplus
+spec:
+  completions: 10                                               //执行job的次数
+  parallelism: 1                                                //执行job的并发数
+  template:
+    metadata:
+      name: busyboxplus
+    spec:
+      containers:
+      - name: busyboxplus
+        image: radial/busyboxplus
+        imagePullPolicy: IfNotPresent
+        command: ["echo", "hello"]
+      restartPolicy: Never
+EOF
+
+kubectl apply -f completions-job.yaml
+
+watch -n1 kubectl get pod                   //动态查看job执行了10次
+
+
+watch -n1 kubectl get job                   //动态查看job信息
+
+
+
+
+
+###### Cronjob
+CronJob即定时任务，就类似于Linux系统的crontab，在指定的时间周期运行指定的任务。使用CronJob需要开启batch/v2alpha1 API，
+
+CronJob Spec
+•.spec.schedule指定任务运行周期，格式同Cron                 分  时  日  月  周
+•.spec.jobTemplate指定需要运行的任务，格式同Job
+•.spec.startingDeadlineSeconds指定任务开始的截止期限
+•.spec.concurrencyPolicy指定任务的并发策略，支持Allow、Forbid和Replace三个选项
+
+
+### 创建yaml
+cat << EOF > cronjob.yaml
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: hello
+spec:
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: hello
+            image: radial/busyboxplus
+            imagePullPolicy: IfNotPresent
+            args:
+            - /bin/sh
+            - -c
+            - date; echo Hello from the Kubernetes cluster
+          restartPolicy: OnFailure
+EOF
+
+kubectl apply -f cronjob.yaml
+
+[root@master01 ~]# kubectl get cronjobs.batch 
+NAME    SCHEDULE      SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+hello   */1 * * * *   False     0        47s             111s
+
+
+[root@master01 ~]# kubectl get pod
+NAME                     READY   STATUS              RESTARTS   AGE
+hello-1542784260-j7bz8   0/1     Completed           0          2m1s
+hello-1542784320-rj6hh   0/1     Completed           0          61s
+hello-1542784380-ggdqn   0/1     ContainerCreating   0          1s
+
+
+[root@master01 ~]# kubectl logs hello-1542784380-ggdqn
+Wed Nov 21 07:13:05 UTC 2018
+Hello from the Kubernetes cluster
+[root@master01 ~]# kubectl logs hello-1542784320-rj6hh
+Wed Nov 21 07:12:04 UTC 2018
+Hello from the Kubernetes cluster
+[root@master01 ~]# kubectl logs hello-1542784260-j7bz8
+Wed Nov 21 07:11:04 UTC 2018
+Hello from the Kubernetes cluster
+[root@master01 ~]# 

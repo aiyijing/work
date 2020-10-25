@@ -1,0 +1,72 @@
+1.创建一个符合要求的pod ，名字为nginx-app
+
+2.创建命名空间为test，创建一个pod，名字为nginx-test，指定到test命名空间运行
+
+3.看某个标签使用cpu最高的pod
+Kubectl top pod -l xxx标签
+
+4.创建一个保存密码的secret，密码为redhat。并且创建2个pod 1个pod mount成文件，一个用环境变量
+
+5.给定deployment扩容
+
+
+6.创建deployment，名字为deploy-nginx 镜像使用nginx1.9.0，升级images到latest，然后再回滚回去，把最终的deployment spec弄出来
+
+
+7.创建daemonset名字为nginx-daemonset，image使用nginx:latest，要求NoSchedule也运行
+
+
+8.创建static pod，名字为static-web
+
+
+9.抓取etcd pod的erro报错的日志保存在/tmp/erro文件里
+
+10.node01设置为不可调度，迁移node01节点上的pod到其他可用的机器上
+
+11.创建deployment，名字为test-service-deploy，副本书为5.创建一个service名字为test-service，使用clusterip类型
+
+12.创建一个pod，image使用radial/busyboxplus，解析test-service的clusterip，将结果保存到/tmp/service-nslookup，
+解析test-service-deploy这个任意pod的ip地址，将结果保存到/tmp/pod-nslookup
+
+13.列某个default这个namespaces下test-service所代表的所有pod的名字
+先kubectl get service看下label 是什么，再kubectl get pod -l 看下面名字，然后需要留的是名字
+kubectl get pods -l xxxx "-o=custom-columns=NAME:.metadata.name" 注意最终要的只是名字
+
+14.创建一个init container，要求init容器在/storage/创建一个testfile，container检测到这个文件启动容器
+
+15.创建一个pv，大小要求10G，权限为ReadWriteMany，使用hostpath，路径为/data/test 
+
+16.给etcd做个snapshot 3.0 版本  提示：
+endpoints为https://10.6.16.1:2379
+ca证书 /etc/kubernetes/pki/etcd/ca.crt 
+cert证书/etc/kubernetes/pki/etcd/peer.crt
+密钥为/etc/kubernetes/pki/etcd/peer.key
+将备份保存到/backup/snapshot.db
+
+17.列出当前nodes节点不是NoSchedule的节点数量，将数字写到/tmp/node文件中
+
+
+18.创建个带volume带pod，要求不是持久化volume，pod名字为volume-pod   image用nginx
+
+
+19.在一个POD里多个container （nginx+nginx1.9.0+busyboxplus）
+
+
+20.创建5个pv，名字分别是pv1,pv2,pv3，大小分别是2G，3G，4G。
+查看pv的大小，按照排序打印出来，使用kubernetes的方法，不能手动
+kubectl --all-namespaces get pv --sort-by=spec.capacity.storage 
+
+
+21.指定pod运行到带有disktype=ssd的节点上
+
+
+
+node 是not ready解决下
+Ssh 去node上，发现kubelet没有启动，启动下就好 并设置为开机自启
+
+
+给你个环境说有问题，自己看。master 和node 只发现了controller-manager没启动
+每台节点都可以ssh ，kubectl get pod看也没有非running 的systemctl 看了下有2个失败的，
+将kube-controller-manager服务启动设置为开机自启
+
+

@@ -1,0 +1,38 @@
+### yaml创建daemonset
+cat << EOF > nginx-daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nginx-daemonset
+  labels:
+    k8s-app: nginx-test
+spec:
+  selector:
+    matchLabels:
+      name: nginx-test
+  template:
+    metadata:
+      labels:
+        name: nginx-test
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      containers:
+      - name: nginx-test
+        image: nginx
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            memory: 200Mi
+          requests:
+            memory: 200Mi
+EOF
+
+
+[root@master01 damon]# kubectl get pod -o wide
+NAME                    READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE
+nginx-daemonset-2gtl4   1/1     Running   0          90s   192.168.0.14   master01   <none>
+nginx-daemonset-jqn4g   1/1     Running   0          78s   192.168.1.42   node01     <none>
+
+

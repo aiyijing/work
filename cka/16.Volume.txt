@@ -1,0 +1,189 @@
+##### 创建Pod使用Volume
+cat << EOF > test-volume.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pd
+spec:
+  containers:
+  - image: nginx
+    imagePullPolicy: IfNotPresent
+    name: test-container
+    volumeMounts:
+    - mountPath: /test-pd
+      name: test-volume
+  volumes:
+  - name: test-volume
+    hostPath:
+      path: /data
+EOF
+
+########## 创建PV
+cat << EOF > pv.yaml
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: task-pv-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual                          //该名称将用于将PersistentVolumeClaim请求绑定到此
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/storage/pv1"
+EOF
+
+
+kubectl apply -f pv.yaml
+
+[root@master01 ~]# kubectl get pv
+NAME             CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
+task-pv-volume   10Gi       RWO            Retain           Available           manual                  7s
+
+述具体的PV功能。 
+访问模式: 
+(RWO) ReadWriteOnce – the volume can be mounted as read-write by a single node (单node的读写) 
+(ROM) ReadOnlyMany – the volume can be mounted read-only by many nodes (多node的只读) 
+(RWM) ReadWriteMany – the volume can be mounted as read-write by many nodes (多node的读写) 
+
+
+pv可以设置三种回收策略：保留（Retain），回收（Recycle）和删除（Delete）。
+- 保留策略：允许人工处理保留的数据。（默认）
+- 删除策略：将删除pv和外部关联的存储资源，需要插件支持。
+- 回收策略：将执行清除操作，之后可以被新的pvc使用，需要插件支持。
+
+PV卷阶段状态：
+Available – 资源尚未被claim使用
+Bound – 卷已经被绑定到claim了
+Released – claim被删除，卷处于释放状态，但未被集群回收。
+Failed – 卷自动回收失败
+
+
+########## 创建PVC
+cat << EOF > pvc.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: task-pv-claim
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 3Gi
+EOF
+
+kubectl apply -f pvc.yaml
+
+[root@master01 ~]# kubectl get pv
+NAME             CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                   STORAGECLASS   REASON   AGE
+task-pv-volume   10Gi       RWO            Retain           Bound    default/task-pv-claim   manual                  2m17s
+[root@master01 ~]# kubectl get pvc
+NAME            STATUS   VOLUME           CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+task-pv-claim   Bound    task-pv-volume   10Gi       RWO            manual         9s
+
+
+########## 创建一个pod使用pvc
+cat << EOF > pod-pv.yaml
+kind: Pod
+apiVersion: v1
+metadata:
+  name: task-pv-pod
+spec:
+  volumes:
+    - name: task-pv-storage
+      persistentVolumeClaim:
+       claimName: task-pv-claim
+  containers:
+    - name: task-pv-container
+      image: nginx
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 80
+          name: "http-server"
+      volumeMounts:
+        - mountPath: "/usr/share/nginx/html"
+          name: task-pv-storage
+EOF
+
+kubectl apply -f pod-pv.yaml 
+
+
+### 在master节点操作
+[root@master01 pv1]# kubectl exec -it task-pv-pod bash
+root@task-pv-pod:/# cd /usr/share/nginx/html/
+root@task-pv-pod:/usr/share/nginx/html# ls
+root@task-pv-pod:/usr/share/nginx/html# touch index.html
+root@task-pv-pod:/usr/share/nginx/html# echo 11 > index.html 
+root@task-pv-pod:/usr/share/nginx/html# exit
+exit
+[root@master01 pv1]# curl 192.168.1.41
+11
+
+
+### pod运行在node01，所以要去node01节点查看hostpath
+[root@node01 ~]# cd /storage/
+[root@node01 storage]# ls
+pv1
+[root@node01 storage]# cd pv1/
+[root@node01 pv1]# ls
+index.html
+[root@node01 pv1]# 
+
+
+
+################################### emptyDir
+
+cat << EOF > emptydir.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: emptydir-pod
+  labels:
+    app: myapp
+spec:
+  volumes:
+  - name: storage
+    emptyDir: {}
+  containers:
+  - name: myapp1
+    image: radial/busyboxplus
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - name: storage
+      mountPath: /storage
+    command: ['sh', '-c', 'sleep 3600000']
+  - name: myapp2
+    image: radial/busyboxplus
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - name: storage
+      mountPath: /storage
+    command: ['sh', '-c', 'sleep 10000000']
+EOF
+
+kubectl apply -f emptydir.yaml
+
+[root@master01 ~]# kubectl get pod
+NAME           READY   STATUS    RESTARTS   AGE
+emptydir-pod   2/2     Running   0          2m21s
+
+[root@master01 ~]# kubectl exec -it emptydir-pod -c myapp1 sh
+/ # cd /s
+sh: cd: can't cd to /s
+/ # cd /storage/
+/storage # ls
+/storage # touch 123
+/storage # ls
+123
+/storage # exit
+
+
+[root@master01 ~]# kubectl exec -it emptydir-pod -c myapp2 sh
+/ # ls /storage/
+123
+

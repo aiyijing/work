@@ -1,0 +1,33 @@
+### 查看当前集群下的namespace
+[root@master01 ~]# kubectl get namespaces 
+NAME            STATUS   AGE
+default         Active   4d4h                
+kube-public     Active   4d4h                 
+kube-system     Active   4d4h                 
+
+### 命令行创建namespace
+kubectl create namespace test
+
+### 命令删除namespace
+[root@master01 ~]# kubectl delete namespaces demo 
+namespace "demo" deleted
+
+
+### 通过yaml文件创建
+cat << EOF > my-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+EOF
+
+kubectl apply -f ./my-namespace.yaml
+
+
+### 通过yaml文件删除
+kubectl delete -f my-namespace.yaml 
+
+
+### 通过命令删除资源
+kubectl delete namespaces test
+

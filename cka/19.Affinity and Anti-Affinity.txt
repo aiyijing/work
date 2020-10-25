@@ -1,0 +1,56 @@
+##### node节点添加label
+[root@master01 ~]# kubectl label nodes node01 disktype=ssd
+
+[root@master01 ~]# kubectl get nodes node01 --show-labels 
+NAME     STATUS   ROLES    AGE     VERSION   LABELS
+node01   Ready    <none>   6d16h   v1.12.2   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,disktype=ssd,kubernetes.io/hostname=node01
+
+
+
+##### 使用yaml创建pod，指定nodeSelector
+cat << EOF > pod-nodeSelector.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: test
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+  nodeSelector:
+    disktype: ssd
+EOF
+
+ kubectl apply -f pod-nodeSelector.yaml
+
+ [root@master01 ~]# kubectl get pod -o wide
+NAME           READY   STATUS    RESTARTS   AGE     IP             NODE     NOMINATED NODE
+nginx          1/1     Running   0          19s     192.168.1.51   node01   <none>
+
+
+##### 在yaml文件中添写无法匹配的nodeSelector
+
+cat << EOF > pod-erro-nodeSelector.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-erro
+  labels:
+    env: test
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+  nodeSelector:
+    disktype: vdb
+EOF
+
+ kubectl apply -f pod-erro-nodeSelector.yaml
+
+ [root@master01 ~]# kubectl get pod
+NAME         READY   STATUS    RESTARTS   AGE
+nginx-erro   0/1     Pending   0          4s

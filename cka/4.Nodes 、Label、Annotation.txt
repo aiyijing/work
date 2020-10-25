@@ -1,0 +1,37 @@
+### 查看集群节点信息
+[root@master01 ~]# kubectl get nodes
+
+NAME       STATUS   ROLES    AGE    VERSION
+master01   Ready    master   4d4h   v1.12.2
+node01     Ready    <none>   4d3h   v1.12.2
+
+
+### 查看集群节点的标签信息
+[root@master01 ~]# kubectl get node --show-labels 
+NAME       STATUS   ROLES    AGE    VERSION   LABELS
+master01   Ready    master   4d4h   v1.12.2   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=master01,node-role.kubernetes.io/master=
+node01     Ready    <none>   4d4h   v1.12.2   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=node01
+
+
+
+### 设置节点的角色标签
+[root@master01 ~]# kubectl label nodes node01 node-role.kubernetes.io/node=
+
+### 删除节点的角色标签
+[root@master01 ~]# kubectl label nodes node01 node-role.kubernetes.io/node-
+
+[root@master01 ~]# kubectl get node
+NAME       STATUS   ROLES    AGE    VERSION
+master01   Ready    master   4d4h   v1.12.2
+node01     Ready    node     4d4h   v1.12.2
+
+
+### 查看扩展信息
+[root@master01 ~]# kubectl get nodes -o wide
+NAME       STATUS   ROLES    AGE     VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE                KERNEL-VERSION          CONTAINER-RUNTIME
+master01   Ready    master   6d23h   v1.12.2   10.6.16.1     <none>        CentOS Linux 7 (Core)   3.10.0-862.el7.x86_64   docker://18.6.1
+node01     Ready    node     6d23h   v1.12.2   10.6.16.2     <none>        CentOS Linux 7 (Core)   3.10.0-862.el7.x86_64   docker://18.6.1
+
+
+### 查看某个资源的详细信息
+[root@master01 ~]# kubectl describe nodes node01 

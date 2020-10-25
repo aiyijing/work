@@ -1,0 +1,101 @@
+### 命令行创建Deployment
+kubectl run nginx-app --image=nginx:1.9.0 --image-pull-policy=IfNotPresent --replicas=2
+
+### yaml文件创建
+cat << EOF > nginx-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.9.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+EOF
+
+kubectl apply -f nginx-deployment.yaml
+
+############# 升级
+kubectl set image deployment nginx-deployment nginx=nginx:latest --record
+
+
+kubectl rollout status deployment nginx-app
+
+###查看是否升级成功
+[root@master01 damon]# kubectl get pod
+NAME                         READY   STATUS    RESTARTS   AGE
+nginx-deployment-7dc4497dff-586hd   1/1     Running   0          18s
+nginx-deployment-7dc4497dff-pjx2v   1/1     Running   0          20s
+[root@master01 damon]# kubectl exec -it nginx-app-7dc4497dff-586hd -- nginx -v
+nginx version: nginx/1.15.6
+
+### 注意！！！ 如果在升级过程中出现问题，比如image版本写错  那么需要暂停部署，重新指定升级的image
+kubectl rollout pause deployment.v1.apps/nginx-deployment           // 暂停部署
+
+
+########## 回滚
+### 查看deployment的记录
+[root@master01 damon]# kubectl rollout history deployment nginx-deployment                         
+deployment.extensions/nginx-app 
+REVISION  CHANGE-CAUSE
+1         <none>
+2         kubectl set image deployment nginx-deployment nginx-app=nginx:latest --record=true
+
+### 指定deployment的revision
+[root@master01 damon]# kubectl rollout history deployment nginx-deployment --revision=1
+deployment.extensions/nginx-app with revision #1
+Pod Template:
+  Labels:	pod-template-hash=7d66dffb44
+	run=nginx-app
+  Containers:
+   nginx-app:
+    Image:	nginx:1.9.0
+    Port:	<none>
+    Host Port:	<none>
+    Environment:	<none>
+    Mounts:	<none>
+  Volumes:	<none>
+
+### 执行回滚操作
+ kubectl rollout undo deployment nginx-deployment --to-revision=1
+
+
+########## 扩展部署
+kubectl scale deployment --replicas=6 nginx-deployment
+
+
+
+########## HPA (水平pod自动缩放) （horizontal pod autoscaling）
+[root@master01 ~]# kubectl run hpa-test --image=radial/busyboxplus --replicas=1 --image-pull-policy=IfNotPresent --command -- sleep 100000
+
+[root@master01 ~]# kubectl get pod
+NAME                        READY   STATUS    RESTARTS   AGE
+hpa-test-6d57c9bc9f-dc6cx   1/1     Running   0          19s
+
+[root@master01 ~]# kubectl autoscale deployments hpa-test --min=3 --max=5 --cpu-percent=10
+
+
+[root@master01 ~]# kubectl exec -it hpa-test-6d57c9bc9f-dc6cx sh
+/ # while true;do touch 123;done
+
+
+
+
+
+
+
+

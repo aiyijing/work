@@ -1,0 +1,152 @@
+tar -xvf  demo.tgz            //解压
+docker load  < stress.tar       //将image导入node01本地
+
+
+##### 通过yaml创建pod
+cat << EOF > pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memory-demo
+spec:
+  containers:
+  - name: demo
+    image: polinux/stress
+    command: ["stress"]
+    args: ["--vm", "1", "--vm-bytes", "150M", "--vm-hang", "1"]
+EOF
+
+kubectl apply -f pod.yaml     
+
+  
+
+##### 查看pod的状态
+[root@master01 ~]# kubectl -n mem-example get pod
+NAME          READY   STATUS             RESTARTS   AGE
+demo   0/1     ImagePullBackOff   0          23m
+
+注意：
+在kubernetes中，镜像的下载策略为：
+　Always：每次都下载镜像（默认）
+　Never：只使用本地镜像，从不下载
+　IfNotPresent：只有当本地没有的时候才下载镜像
+
+### 编辑已经创建的pod，修改imagePullPolicy: Always   为 imagePullPolicy: IfNotPresent
+kubectl -n mem-example edit pod demo
+
+### 在yaml文件里指定image下载策略
+cat << EOF > pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memory-demo
+spec:
+  containers:
+  - name: demo
+    image: polinux/stress
+    imagePullPolicy: IfNotPresent
+    command: ["stress"]
+    args: ["--vm", "1", "--vm-bytes", "150M", "--vm-hang", "1"]
+EOF
+
+
+### 创建pod设置内存使用范围
+cat << EOF > stress-pod.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mem-example
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memory-demo
+  namespace: mem-example
+spec:
+  containers:
+  - name: memory-demo-ctr
+    image: polinux/stress
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        memory: "200Mi"
+      requests:
+        memory: "100Mi"
+    command: ["stress"]
+    args: ["--vm", "1", "--vm-bytes", "150M", "--vm-hang", "1"]
+EOF
+
+
+######## 当程序运行内存超过指定范围
+
+kubectl create namespace mem-example
+
+cat << EOF > stress-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memory-demo-2
+spec:
+  containers:
+  - name: memory-demo-2-ctr
+    image: polinux/stress
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        memory: "50Mi"
+      limits:
+        memory: "100Mi"
+    command: ["stress"]
+    args: ["--vm", "1", "--vm-bytes", "250M", "--vm-hang", "1"]
+EOF
+
+kubectl apply -f stress-pod.yaml -n mem-example
+
+### 查看会发现memory-demo-2这个pod状态变为OOMKilled，因为它是内存不足所以显示Container被杀死
+[root@master01 ~]# kubectl get pod -n mem-example
+NAME            READY   STATUS      RESTARTS   AGE
+memory-demo     1/1     Running     0          7m13s
+memory-demo-2   0/1     OOMKilled   2          20s
+
+
+
+### 一个pod里可以有多个容器
+cat << EOF > mu-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memory-demo
+spec:
+  containers:
+  - name: memory-demo-ctr-1
+    image: polinux/stress
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        memory: "200Mi"
+      requests:
+        memory: "100Mi"
+    command: ["stress"]
+    args: ["--vm", "1", "--vm-bytes", "150M", "--vm-hang", "1"]
+  - name: memory-demo-ctr-2
+    image: polinux/stress
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        memory: "200Mi"
+      requests:
+        memory: "100Mi"
+    command: ["stress"]
+    args: ["--vm", "1", "--vm-bytes", "150M", "--vm-hang", "1"]
+EOF
+
+
+
+##### 登陆容器操作
+    ### pod封装一个容器
+    kubectl -n mem-example exec -it memory-demo bash
+    kubectl -n mem-example exec -it memory-demo -- ls /root
+
+    ### pod封装多个容器
+    kubectl -n mem-example exec -it -c memory-demo-ctr-2 memory-demo bash
+    kubectl -n mem-example exec -it -c memory-demo-ctr-2 memory-demo -- ls /root

@@ -1,0 +1,26 @@
+
+######################################################################### 部署metrics-server 注意：仅在master节点
+kubectl apply -f .
+
+
+[root@master01 ~]# kubectl top node 
+NAME       CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%   
+master01   189m         18%    1116Mi          64%       
+node01     59m          5%     343Mi           19%       
+
+[root@master01 ~]# kubectl top pod -n kube-system
+NAME                                    CPU(cores)   MEMORY(bytes)   
+calico-node-8464h                       16m          66Mi            
+calico-node-jb5h2                       22m          57Mi            
+coredns-576cbf47c7-2vmzh                2m           10Mi            
+coredns-576cbf47c7-hn5ld                1m           25Mi            
+etcd-master01                           17m          89Mi            
+kube-apiserver-master01                 24m          477Mi           
+kube-controller-manager-master01        24m          77Mi            
+kube-proxy-bjqn2                        2m           12Mi            
+kube-proxy-rfqvb                        2m           18Mi            
+kube-scheduler-master01                 11m          23Mi            
+kubernetes-dashboard-77fd78f978-8t84k   1m           10Mi            
+metrics-server-58db5899c9-kmr6z         1m           14Mi          
+
+[root@master01 ~]# kubectl -n kube-system logs kube-scheduler-master01

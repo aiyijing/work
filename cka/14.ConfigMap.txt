@@ -1,0 +1,188 @@
+### 通过yaml文件创建
+cat << EOF > configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-config
+data:
+  username: damon
+  password: redhat
+EOF
+
+[root@master01 ~]# kubectl apply -f configmap.yaml 
+
+[root@master01 ~]# kubectl get configmaps 
+NAME          DATA   AGE
+test-config   2      4s
+
+
+[root@master01 ~]# kubectl describe configmaps test-config 
+Name:         test-config
+Namespace:    default
+Labels:       <none>
+Annotations:  kubectl.kubernetes.io/last-applied-configuration:
+                {"apiVersion":"v1","data":{"password":"redhat","username":"damon"},"kind":"ConfigMap","metadata":{"annotations":{},"name":"test-config","n...
+
+Data
+====
+username:
+----
+damon
+password:
+----
+redhat
+Events:  <none>
+
+
+### 通过命令行创建configmap
+cat << EOF > userfile
+username: damon
+EOF
+
+cat << EOF > passwordfile
+password: redhat
+EOF
+
+kubectl create configmap test-configmap --from-file=userfile --from-file=passwordfile
+
+
+##############  pod调用configmap
+### volume挂载
+cat << EOF > test-configmap-volume-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-configmap-volume-pod
+spec:
+  containers:
+    - name: test-container
+      image: radial/busyboxplus
+      imagePullPolicy: IfNotPresent
+      command: [ "/bin/sh", "-c", "sleep 1000000" ]
+      volumeMounts:
+      - name: config-volume
+        mountPath: /storage
+  volumes:
+    - name: config-volume
+      configMap:
+        name: test-config
+EOF
+
+kubectl apply -f test-configmap-volume-pod.yaml 
+
+[root@master01 ~]# kubectl exec -it test-configmap-volume-pod sh
+/ # cd /storage/
+/storage # ls
+passwordfile  userfile
+/storage # cat *
+password: redhat
+username: damon
+
+
+
+
+### env环境变量
+cat << EOF > test-configmap-env-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-configmap-env-pod
+spec:
+  containers:
+    - name: test-container
+      image: radial/busyboxplus
+      imagePullPolicy: IfNotPresent
+      command: [ "/bin/sh", "-c", "sleep 1000000" ]
+      envFrom:
+      - configMapRef:
+          name: test-config
+EOF
+
+kubectl apply -f test-configmap-env-pod.yaml
+
+[root@master01 ~]# kubectl get pod
+NAME                     READY   STATUS    RESTARTS   AGE
+test-configmap-env-pod   1/1     Running   0          3s
+[root@master01 ~]# kubectl exec -it test-configmap-env-pod sh
+/ # env 
+KUBERNETES_PORT=tcp://10.96.0.1:443
+KUBERNETES_SERVICE_PORT=443
+HOSTNAME=test-configmap-env-pod
+SHLVL=1
+userfile=username: damon
+
+HOME=/
+passwordfile=password: redhat
+
+TERM=xterm
+KUBERNETES_PORT_443_TCP_ADDR=10.96.0.1
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+KUBERNETES_PORT_443_TCP_PORT=443
+KUBERNETES_PORT_443_TCP_PROTO=tcp
+KUBERNETES_PORT_443_TCP=tcp://10.96.0.1:443
+KUBERNETES_SERVICE_PORT_HTTPS=443
+PWD=/
+KUBERNETES_SERVICE_HOST=10.96.0.1
+/ # 
+
+
+
+### 命令行调用env
+# 创建cofigmap环境变量
+cat << EOF > configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-config
+data:
+  username: damon
+  password: redhat
+EOF
+
+[root@master01 ~]# kubectl apply -f configmap.yaml 
+
+# 创建pod的yaml
+cat << EOF > test-configmap-command-env-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-configmap-command-env-pod
+spec:
+  containers:
+    - name: test-container
+      image: radial/busyboxplus
+      imagePullPolicy: IfNotPresent
+      command: [ "/bin/sh", "-c", "echo \$(MYSQLUSER) \$(MYSQLPASSWD); sleep 1000000" ]
+      env:
+        - name: MYSQLUSER
+          valueFrom: 
+            configMapKeyRef: 
+              name: test-config
+              key: username
+        - name: MYSQLPASSWD
+          valueFrom:
+            configMapKeyRef: 
+              name: test-config
+              key: password
+EOF
+
+[root@master01 ~]# kubectl get pod
+NAME                             READY   STATUS    RESTARTS   AGE
+test-configmap-command-env-pod   1/1     Running   0          5s
+[root@master01 ~]# kubectl exec -it test-configmap-command-env-pod -- env
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+HOSTNAME=test-configmap-command-env-pod
+TERM=xterm
+MYSQLUSER=damon
+MYSQLPASSWD=redhat
+KUBERNETES_SERVICE_PORT_HTTPS=443
+KUBERNETES_PORT=tcp://10.96.0.1:443
+KUBERNETES_PORT_443_TCP=tcp://10.96.0.1:443
+KUBERNETES_PORT_443_TCP_PROTO=tcp
+KUBERNETES_PORT_443_TCP_PORT=443
+KUBERNETES_PORT_443_TCP_ADDR=10.96.0.1
+KUBERNETES_SERVICE_HOST=10.96.0.1
+KUBERNETES_SERVICE_PORT=443
+HOME=/
+[root@master01 ~]# kubectl logs test-configmap-command-env-pod 
+damon redhat

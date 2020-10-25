@@ -1,0 +1,101 @@
+############# 手动备份
+### 拷贝etcd容器的etcdctl命令到宿主机本地的 /usr/bin/下
+docker cp k8s_etcd_etcd-master01_kube-system_32144e70958a19d4b529ed946b3e2726_1:/usr/local/bin/etcdctl /usr/bin
+mkdir  /etcd_backup/
+ETCDCTL_API=3 etcdctl --endpoints https://10.6.16.1:2379 \
+--cacert=/etc/kubernetes/pki/etcd/ca.crt \
+--cert=/etc/kubernetes/pki/etcd/peer.crt \
+--key=/etc/kubernetes/pki/etcd/peer.key \
+snapshot save /etcd_backup/snapshot.db
+### 返回输出：
+Snapshot saved at snapshot.db
+
+### 查看备份数据的状态
+
+cd /etcd_backup/
+
+ETCDCTL_API=3 etcdctl \
+--endpoints https://10.6.16.1:2379 \
+--cacert=/etc/kubernetes/pki/etcd/ca.crt \
+--cert=/etc/kubernetes/pki/etcd/peer.crt \
+--key=/etc/kubernetes/pki/etcd/peer.key \
+--write-out=table snapshot status snapshot.db
+ ### 返回输出：
++----------+----------+------------+------------+
+|   HASH   | REVISION | TOTAL KEYS | TOTAL SIZE |
++----------+----------+------------+------------+
+| 3f884340 |   101335 |       1088 |     2.8 MB |
++----------+----------+------------+------------+
+
+############# 自动备份
+### 拷贝etcd容器的etcdctl命令到宿主机本地的 /usr/bin/下
+docker cp k8s_etcd_etcd-master01_kube-system_32144e70958a19d4b529ed946b3e2726_1:/usr/local/bin/etcdctl /usr/bin
+
+### 创建备份目录
+mkdir  /etcd_backup/
+
+### 编写执行脚本
+cat << EOF > etcd_backup.sh
+#!/bin/bash
+IP=10.6.16.1
+BACKUP=/etcd_backup/
+export ETCDCTL_API=3
+mkdir -p $BACKUP
+etcdctl --endpoints=https://$IP:2379 \
+--cacert=/etc/kubernetes/pki/etcd/ca.crt \
+--cert=/etc/kubernetes/pki/etcd/peer.crt \
+--key=/etc/kubernetes/pki/etcd/peer.key \
+snapshot save $BACKUP/snap-$(date +%Y%m%d%H%M).db
+EOF
+
+### 编写定时任务
+crontab -e
+0 0 * * * /bin/sh /root/etcd_backup.sh
+
+
+
+
+##########################################################  Etcd数据恢复
+#### 查看etcd是否健康
+ETCDCTL_API=3 etcdctl --endpoints https://10.6.16.1:2379 \
+--cacert=/etc/kubernetes/pki/etcd/ca.crt \
+--cert=/etc/kubernetes/pki/etcd/peer.crt \
+--key=/etc/kubernetes/pki/etcd/peer.key \
+endpoint health
+
+### 停止集群master节点的kubelet服务
+systemctl stop kubelet
+
+### 查看etcd的成员列表
+ETCDCTL_API=3 etcdctl --endpoints https://10.6.16.1:2379 \
+--cacert=/etc/kubernetes/pki/etcd/ca.crt \
+--cert=/etc/kubernetes/pki/etcd/peer.crt \
+--key=/etc/kubernetes/pki/etcd/peer.key \
+member list
+# 返回的输出
+54363b79602315f2, started, master01, https://10.6.16.1:2380, https://10.6.16.1:2379
+
+### 查看etcd的yaml文件
+kubectl -n kube-system get pod etcd-master01 -o yaml
+
+### etcd数据存放目录是/var/lib/etcd/，此目录是容器挂载宿主机的/var/lib/etcd/。删除宿主机的/var/lib/etcd/目录就是清空etcd容器的数据。
+[root@master01 ~]#  rm -rf /var/lib/etcd/           
+
+### 恢复etcd数据
+export ETCDCTL_API=3
+etcdctl snapshot restore /etcd_backup/snapshot.db \
+--cacert=/etc/kubernetes/pki/etcd/ca.crt \
+--cert=/etc/kubernetes/pki/etcd/peer.crt \
+--key=/etc/kubernetes/pki/etcd/peer.key \
+--name=master01 \
+--data-dir=/var/lib/etcd \
+--skip-hash-check \
+--initial-advertise-peer-urls=https://10.6.16.1:2380 \
+--initial-cluster=master01=https://10.6.16.1:2380 
+
+
+### 查看数据是否恢复
+[root@master01 ~]# ls /var/lib/etcd/
+
+
+

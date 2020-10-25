@@ -1,0 +1,24 @@
+[root@node01 ~]# cat <<EOF >/etc/kubernetes/manifests/static-web.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: static-web
+  labels:
+    role: myrole
+spec:
+  containers:
+    - name: web
+      image: nginx
+      imagePullPolicy: IfNotPresent
+      ports:
+        - name: web
+          containerPort: 80
+          protocol: TCP
+EOF
+
+
+
+### 在master节点查看，只能查看不能对其管理有任何操作
+[root@master01 ~]# kubectl get pod
+NAME                READY   STATUS    RESTARTS   AGE
+static-web-node01   1/1     Running   0          6s

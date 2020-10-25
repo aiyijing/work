@@ -1,0 +1,204 @@
+##### yaml文件创建service
+cat << EOF > nginx-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.9.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: my-service
+spec:
+  type: ClusterIP                                               
+  selector:
+    app: nginx
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+EOF
+
+[root@master01 ~]# kubectl get pod
+NAME                              READY   STATUS    RESTARTS   AGE
+nginx-deployment-676cc869-bnnvd   1/1     Running   0          3m23s
+nginx-deployment-676cc869-ft8bw   1/1     Running   0          3s
+
+[root@master01 ~]# kubectl get service
+NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+kubernetes   ClusterIP   10.96.0.1       <none>        443/TCP   5d6h
+my-service   ClusterIP   10.108.214.38   <none>        80/TCP    5m26s
+
+[root@master01 ~]# kubectl get endpoints 
+NAME         ENDPOINTS                         AGE
+kubernetes   10.6.16.1:6443                    5d6h
+my-service   192.168.1.45:80,192.168.1.46:80   9m3s
+
+[root@master01 ~]# curl  10.108.214.38
+111
+[root@master01 ~]# curl  10.108.214.38
+222
+[root@master01 ~]# curl  10.108.214.38
+222
+[root@master01 ~]# curl  10.108.214.38
+222
+[root@master01 ~]# curl  10.108.214.38
+111
+
+[root@master01 ~]# iptables -L -n -t nat | grep 80
+
+### NodePort
+在上述yaml文件里kind: Service下更改 type: NodePort
+  ports:
+  - protocol: TCP
+    nodePort: 32222                       //指定NodePort的端口
+    port: 80
+    targetPort: 80
+
+
+[root@master01 ~]# kubectl get service
+NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+kubernetes   ClusterIP   10.96.0.1       <none>        443/TCP        5d6h
+my-service   NodePort    10.108.214.38   <none>        80:30571/TCP   6m29s
+
+[root@master01 ~]# kubectl get endpoints 
+NAME         ENDPOINTS                         AGE
+kubernetes   10.6.16.1:6443                    5d6h
+my-service   192.168.1.45:80,192.168.1.46:80   9m3s
+
+### 验证clusterip
+[root@master01 ~]# curl 10.108.214.38
+222
+[root@master01 ~]# curl 10.108.214.38
+222
+[root@master01 ~]# curl 10.108.214.38
+222
+[root@master01 ~]# curl 10.108.214.38
+222
+[root@master01 ~]# curl 10.108.214.38
+222
+[root@master01 ~]# curl 10.108.214.38
+111
+[root@master01 ~]# curl 10.108.214.38
+222
+
+
+### 验证node节点IP
+[root@master01 ~]# curl 10.6.16.1:30571
+111
+[root@master01 ~]# curl 10.6.16.1:30571
+111
+[root@master01 ~]# curl 10.6.16.1:30571
+111
+[root@master01 ~]# curl 10.6.16.1:30571
+222
+[root@master01 ~]# curl 10.6.16.1:30571
+222
+
+### 查看防火墙策略
+iptables -L -n -t nat 
+
+
+
+
+
+########## 通过命令行创建service
+kubectl run nginx-app --image=nginx --image-pull-policy=IfNotPresent --replicas=2
+
+kubectl expose deployment nginx-app --type="NodePort" --port=80
+  --type="NodePort"
+  --type="ClusterIP"
+
+
+
+
+##### 多Deployment，selector一致
+cat << EOF > mu-deployment-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-damon
+  labels:
+    app: nginx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.9.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.9.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: my-service
+spec:
+  type: ClusterIP                                               
+  selector:
+    app: nginx
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+EOF
+
+
+### 查看endpoints
+[root@master01 ~]# kubectl get endpoints my-service 
+NAME         ENDPOINTS                                                     AGE
+my-service   192.168.1.30:80,192.168.1.31:80,192.168.2.33:80 + 1 more...   2m26s
+
+
+
+
+

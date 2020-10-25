@@ -1,0 +1,19 @@
+#### 设置某个节点为维护模式
+[root@master01 ~]# kubectl cordon node01 
+
+[root@master01 ~]# kubectl get nodes
+NAME       STATUS                     ROLES    AGE   VERSION
+master01   Ready                      master   8h    v1.13.0
+node01     Ready,SchedulingDisabled   node     8h    v1.13.0
+node02     Ready                      node     8h    v1.13.0
+
+
+
+##### 平滑pod
+kubectl drain node01  --ignore-daemonsets
+#注意：如果创建的资源类型（Kind）是pod类型，无法实现平滑。
+
+
+
+##### 取消节点的维护模式
+[root@master01 ~]# kubectl uncordon node01

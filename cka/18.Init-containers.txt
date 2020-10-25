@@ -1,0 +1,44 @@
+########## yaml创建init-containers
+cat << EOF > initcontainers.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels:
+    app: myapp
+spec:
+  volumes:
+  - name: storage
+    emptyDir: {}
+  containers:
+  - name: myapp-containers
+    image: radial/busyboxplus
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - name: storage
+      mountPath: /storage
+    command: ['sh', '-c', 'if [ -f /storage/testfile ] ; then sleep 3600000 ; fi']
+  initContainers:
+  - name: init-containers
+    image: radial/busyboxplus
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - name: storage
+      mountPath: /storage
+    command: ['sh', '-c', 'touch /storage/testfile && sleep 10']
+EOF
+
+
+kubectl apply -f initcontainers.yaml
+
+[root@master01 ~]# kubectl get pod
+NAME        READY   STATUS     RESTARTS   AGE
+myapp-pod   0/1     Init:0/1   0          8s
+
+[root@master01 ~]# kubectl get pod
+NAME        READY   STATUS    RESTARTS   AGE
+myapp-pod   1/1     Running   0          17s
+
+[root@master01 ~]# kubectl exec -it myapp-pod -- ls /storage/
+testfile
+
